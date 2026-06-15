@@ -140,21 +140,32 @@ fn find_raw_file(dir: &str, prefix: &str) -> Result<String, String> {
         .ok_or_else(|| "Downloaded file not found".to_string())
 }
 
-/// Append a row to {day_dir}\links.csv (시간,링크,파일명). Writes a UTF-8
-/// BOM + header row on first creation so Excel opens it with Korean intact.
-fn append_link_log(log_lock: &Mutex<()>, day_dir: &str, url: &str, filename: &str) {
+/// Append a row to {day_dir}\{file_name}, writing a UTF-8 BOM + header row
+/// on first creation so Excel opens it with Korean intact.
+fn append_csv_row(log_lock: &Mutex<()>, day_dir: &str, file_name: &str, header: &str, fields: &[&str]) {
     use std::io::Write;
     let _guard = log_lock.lock().unwrap();
-    let path = format!("{}\\links.csv", day_dir);
+    let path = format!("{}\\{}", day_dir, file_name);
     let is_new = !std::path::Path::new(&path).exists();
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
         if is_new {
-            let _ = f.write_all("\u{FEFF}시간,링크,파일명\r\n".as_bytes());
+            let _ = f.write_all(format!("\u{FEFF}{}\r\n", header).as_bytes());
         }
-        let now = chrono::Local::now().format("%H:%M:%S");
-        let line = format!("{},{},{}\r\n", now, csv_field(url), csv_field(filename));
-        let _ = f.write_all(line.as_bytes());
+        let row: Vec<String> = fields.iter().map(|s| csv_field(s)).collect();
+        let _ = f.write_all(format!("{}\r\n", row.join(",")).as_bytes());
     }
+}
+
+/// Log a successfully downloaded file to {day_dir}\links.csv (시간,링크,파일명).
+fn append_link_log(log_lock: &Mutex<()>, day_dir: &str, url: &str, filename: &str) {
+    let now = chrono::Local::now().format("%H:%M:%S").to_string();
+    append_csv_row(log_lock, day_dir, "links.csv", "시간,링크,파일명", &[&now, url, filename]);
+}
+
+/// Log a failed download to {day_dir}\failed_links.csv (시간,링크,오류).
+fn append_failed_log(log_lock: &Mutex<()>, day_dir: &str, url: &str, reason: &str) {
+    let now = chrono::Local::now().format("%H:%M:%S").to_string();
+    append_csv_row(log_lock, day_dir, "failed_links.csv", "시간,링크,오류", &[&now, url, reason]);
 }
 
 fn csv_field(s: &str) -> String {
@@ -349,12 +360,17 @@ async fn download_video(
 
     if !exit.success() {
         emit(&app, &job_id, 0.0, "", "", "Download failed. Please check the URL.", "error");
+        append_failed_log(&state.log_lock, &day_dir, &url, "다운로드 실패");
         return Err("Download failed".into());
     }
 
     if premiere_compat && !is_audio {
         let raw = find_raw_file(&day_dir, &raw_prefix)
-            .map_err(|e| { emit(&app, &job_id, 100.0, "", "", "Output file not found.", "done"); e })?;
+            .map_err(|e| {
+                emit(&app, &job_id, 100.0, "", "", "Output file not found.", "done");
+                append_failed_log(&state.log_lock, &day_dir, &url, "출력 파일을 찾을 수 없음");
+                e
+            })?;
         let out = raw.replacen(&raw_prefix, "", 1).replace(".mp4", "_PP.mp4");
         emit(&app, &job_id, 90.0, "", "", "Converting for Premiere Pro...", "converting");
 
