@@ -20,12 +20,14 @@ const NO_WINDOW: u32 = 0x08000000;
 struct AppState {
     pids: Arc<Mutex<HashMap<String, u32>>>,
     telegram: telegram::TelegramState,
+    log_lock: Arc<Mutex<()>>,
 }
 impl Default for AppState {
     fn default() -> Self {
         Self {
             pids: Arc::new(Mutex::new(HashMap::new())),
             telegram: telegram::TelegramState::default(),
+            log_lock: Arc::new(Mutex::new(())),
         }
     }
 }
@@ -103,8 +105,13 @@ fn parse_dl_line(line: &str) -> Option<(f64, String, String)> {
 
 fn handle_yt_line(line: &str, app: &AppHandle, job_id: &str,
     phase: &Mutex<u32>, last_pct: &Mutex<f64>,
-    premiere_compat: bool, is_audio: bool)
+    premiere_compat: bool, is_audio: bool, final_path: &Mutex<Option<String>>)
 {
+    let trimmed = line.trim();
+    if !trimmed.is_empty() && !trimmed.starts_with('[') && trimmed.contains(":\\") {
+        *final_path.lock().unwrap() = Some(trimmed.to_string());
+        return;
+    }
     if line.contains("[Merger]") || line.contains("Merging formats") {
         let pct = if premiere_compat && !is_audio { 85.0 } else { 95.0 };
         emit(app, job_id, pct, "", "", "Merging audio/video...", "merging");
@@ -125,12 +132,26 @@ fn handle_yt_line(line: &str, app: &AppHandle, job_id: &str,
     }
 }
 
-fn find_raw_file(dir: &str) -> Result<String, String> {
+fn find_raw_file(dir: &str, prefix: &str) -> Result<String, String> {
     std::fs::read_dir(dir).map_err(|e| e.to_string())?
         .filter_map(|e| e.ok())
-        .find(|e| e.file_name().to_string_lossy().starts_with("_raw_"))
+        .find(|e| e.file_name().to_string_lossy().starts_with(prefix))
         .map(|e| e.path().to_string_lossy().to_string())
         .ok_or_else(|| "Downloaded file not found".to_string())
+}
+
+/// Append a "[HH:MM:SS] <url> -> <filename>" line to {day_dir}\links.txt.
+fn append_link_log(log_lock: &Mutex<()>, day_dir: &str, url: &str, filename: &str) {
+    use std::io::Write;
+    let _guard = log_lock.lock().unwrap();
+    let now = chrono::Local::now().format("%H:%M:%S");
+    let line = format!("[{}] {} -> {}\r\n", now, url, filename);
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true).append(true)
+        .open(format!("{}\\links.txt", day_dir))
+    {
+        let _ = f.write_all(line.as_bytes());
+    }
 }
 
 fn run_ffmpeg_convert(ffmpeg: &str, input: &str, output: &str) -> bool {
@@ -245,10 +266,19 @@ async fn download_video(
     let yt_dlp = tool("yt-dlp");
     let ffmpeg  = tool("ffmpeg");
 
+    // Group each day's downloads into their own dated folder so weekly
+    // batches don't pile up together.
+    let day_dir = format!("{}\\{}", output_dir, chrono::Local::now().format("%Y-%m-%d"));
+    std::fs::create_dir_all(&day_dir).map_err(|e| format!("Failed to create folder: {}", e))?;
+
+    // Raw (pre-conversion) files are tagged with the job id so concurrent
+    // premiere_compat jobs can each find their own file.
+    let raw_prefix = format!("_raw_{}_", job_id);
+
     let outtmpl = if premiere_compat && !is_audio {
-        format!("{}\\_raw_%(title)s.%(ext)s", output_dir)
+        format!("{}\\{}%(title)s [%(id)s].%(ext)s", day_dir, raw_prefix)
     } else {
-        format!("{}\\%(title)s.%(ext)s", output_dir)
+        format!("{}\\%(title)s [%(id)s].%(ext)s", day_dir)
     };
 
     let mut args: Vec<String> = vec![
@@ -256,10 +286,11 @@ async fn download_video(
         "-o".into(), outtmpl,
         "--merge-output-format".into(), "mp4".into(),
         "--newline".into(), "--no-colors".into(), "--no-warnings".into(),
+        "--print".into(), "after_move:%(filepath)s".into(),
         "--ffmpeg-location".into(), ffmpeg.clone(),
-        "--concurrent-fragments".into(), "4".into(),
-        "--buffer-size".into(), "1M".into(),
-        "--http-chunk-size".into(), "10M".into(),
+        "--concurrent-fragments".into(), "8".into(),
+        "--buffer-size".into(), "16M".into(),
+        "--http-chunk-size".into(), "5M".into(),
     ];
     if is_audio {
         args.extend(["-x".into(), "--audio-format".into(), "mp3".into(),
@@ -286,17 +317,18 @@ async fn download_video(
     let stderr = child.stderr.take().unwrap();
     let phase    = Arc::new(Mutex::new(0u32));
     let last_pct = Arc::new(Mutex::new(-1.0f64));
+    let final_path = Arc::new(Mutex::new(None::<String>));
 
-    let (app_s, jid_s, ph_s, lp_s) = (app.clone(), job_id.clone(), Arc::clone(&phase), Arc::clone(&last_pct));
+    let (app_s, jid_s, ph_s, lp_s, fp_s) = (app.clone(), job_id.clone(), Arc::clone(&phase), Arc::clone(&last_pct), Arc::clone(&final_path));
     let t1 = std::thread::spawn(move || {
         for line in BufReader::new(stdout).lines().flatten() {
-            handle_yt_line(&line, &app_s, &jid_s, &ph_s, &lp_s, premiere_compat, is_audio);
+            handle_yt_line(&line, &app_s, &jid_s, &ph_s, &lp_s, premiere_compat, is_audio, &fp_s);
         }
     });
-    let (app_e, jid_e, ph_e, lp_e) = (app.clone(), job_id.clone(), Arc::clone(&phase), Arc::clone(&last_pct));
+    let (app_e, jid_e, ph_e, lp_e, fp_e) = (app.clone(), job_id.clone(), Arc::clone(&phase), Arc::clone(&last_pct), Arc::clone(&final_path));
     let t2 = std::thread::spawn(move || {
         for line in BufReader::new(stderr).lines().flatten() {
-            handle_yt_line(&line, &app_e, &jid_e, &ph_e, &lp_e, premiere_compat, is_audio);
+            handle_yt_line(&line, &app_e, &jid_e, &ph_e, &lp_e, premiere_compat, is_audio, &fp_e);
         }
     });
 
@@ -310,9 +342,9 @@ async fn download_video(
     }
 
     if premiere_compat && !is_audio {
-        let raw = find_raw_file(&output_dir)
+        let raw = find_raw_file(&day_dir, &raw_prefix)
             .map_err(|e| { emit(&app, &job_id, 100.0, "", "", "Output file not found.", "done"); e })?;
-        let out = raw.replace("_raw_", "").replace(".mp4", "_PP.mp4");
+        let out = raw.replacen(&raw_prefix, "", 1).replace(".mp4", "_PP.mp4");
         emit(&app, &job_id, 90.0, "", "", "Converting for Premiere Pro...", "converting");
 
         let result = if run_ffmpeg_convert(&ffmpeg, &raw, &out) {
@@ -320,11 +352,15 @@ async fn download_video(
             let name = PathBuf::from(&out).file_name()
                 .unwrap_or_default().to_string_lossy().to_string();
             emit(&app, &job_id, 100.0, "", "", &format!("Done — {}", name), "done");
+            append_link_log(&state.log_lock, &day_dir, &url, &name);
             Ok(out)
         } else {
-            let fallback = raw.replace("_raw_", "");
+            let fallback = raw.replacen(&raw_prefix, "", 1);
             let _ = std::fs::rename(&raw, &fallback);
+            let name = PathBuf::from(&fallback).file_name()
+                .unwrap_or_default().to_string_lossy().to_string();
             emit(&app, &job_id, 100.0, "", "", "Done (conversion skipped)", "done");
+            append_link_log(&state.log_lock, &day_dir, &url, &name);
             Ok(fallback)
         };
 
@@ -334,11 +370,16 @@ async fn download_video(
         return result;
     }
 
+    let name = final_path.lock().unwrap().clone()
+        .map(|p| PathBuf::from(&p).file_name().unwrap_or_default().to_string_lossy().to_string())
+        .unwrap_or_else(|| "?".into());
+    append_link_log(&state.log_lock, &day_dir, &url, &name);
+
     emit(&app, &job_id, 100.0, "", "", "Download complete!", "done");
     if let Some(mid) = telegram_message_id {
         telegram::mark_downloaded(&state.telegram, mid).await;
     }
-    Ok(output_dir)
+    Ok(day_dir)
 }
 
 fn main() {

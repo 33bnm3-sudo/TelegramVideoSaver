@@ -19,6 +19,7 @@ grammers-session = { git = "https://codeberg.org/Lonami/grammers", branch = "mas
 grammers-mtsender = { git = "https://codeberg.org/Lonami/grammers", branch = "master" }
 tokio = { version = "1", features = ["full"] }
 regex = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [features]
 default = ["custom-protocol"]
