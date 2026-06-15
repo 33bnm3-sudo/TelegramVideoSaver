@@ -3,7 +3,7 @@
 :root{
   --bg:#0f0f17; --surf:#1a1a28; --card:#1e1e2e; --card2:#252535;
   --b:#2e2e45; --b2:#3a3a55;
-  --acc:#7c3aed; --acc-h:#6d28d9; --acc-l:#a78bfa;
+  --acc:#229ED9; --acc-h:#1A7FB0; --acc-l:#7EC8F0;
   --fg:#e2e8f0; --fg2:#94a3b8; --fg3:#4a5568;
   --green:#22c55e; --red:#ef4444; --redbg:#2d1515; --yellow:#f59e0b;
   --r:8px; --rs:5px;
@@ -31,7 +31,7 @@ body{
 /* ── Setup / auth screen ── */
 .setup-screen{
   height:100vh; display:flex; align-items:center; justify-content:center;
-  background:radial-gradient(ellipse at 50% 0%,#1a0d33 0%,var(--bg) 70%);
+  background:radial-gradient(ellipse at 50% 0%,#0a1f33 0%,var(--bg) 70%);
   padding:20px;
 }
 .setup-card{
@@ -46,10 +46,10 @@ body{
 
 .setup-logo{
   width:64px; height:64px; border-radius:18px;
-  background:linear-gradient(135deg,#5b21b6,#7c3aed);
+  background:linear-gradient(135deg,#1A7FB0,#2AABEE);
   display:flex; align-items:center; justify-content:center;
   color:#fff; margin-bottom:4px;
-  box-shadow:0 8px 24px #7c3aed44;
+  box-shadow:0 8px 24px #2AABEE44;
 }
 .setup-title{font-size:20px;font-weight:800;letter-spacing:-.02em}
 .setup-subtitle{font-size:12px;color:var(--fg3);text-align:center}
@@ -65,7 +65,7 @@ body{
   transition:border-color .2s, background .2s;
 }
 .setup-item.ok     {background:#22c55e0a;border-color:#22c55e30}
-.setup-item.active {background:#7c3aed0a;border-color:#7c3aed44}
+.setup-item.active {background:#2AABEE0a;border-color:#2AABEE44}
 .setup-item.pending{background:var(--card2)}
 .setup-item-icon{
   width:24px;height:24px;border-radius:50%;
@@ -73,7 +73,7 @@ body{
   flex-shrink:0;
 }
 .setup-item.ok     .setup-item-icon{background:#22c55e22;color:var(--green)}
-.setup-item.active .setup-item-icon{background:#7c3aed22;color:var(--acc-l)}
+.setup-item.active .setup-item-icon{background:#2AABEE22;color:var(--acc-l)}
 .setup-item.pending .setup-item-icon{background:var(--b)}
 .setup-item strong{display:block;font-size:13px;font-weight:600}
 .setup-item span  {display:block;font-size:11px;color:var(--fg3)}
@@ -129,12 +129,12 @@ body{
 /* ── Header ── */
 .header{
   display:flex;align-items:center;gap:8px;padding:11px 16px;
-  background:linear-gradient(135deg,#5b21b6 0%,#7c3aed 100%);
+  background:linear-gradient(135deg,#1A7FB0 0%,#2AABEE 100%);
   flex-shrink:0; color:#fff; box-shadow:0 2px 10px #0005;
 }
 .header-title{font-size:13px;font-weight:700}
 .header-sep{width:1px;height:12px;background:#fff3;margin:0 2px}
-.header-sub{font-size:11px;color:#c4b5fd}
+.header-sub{font-size:11px;color:#bae6fd}
 
 /* ── Telegram saved-messages section ── */
 .tg-section{
@@ -172,7 +172,7 @@ body{
   border-radius:var(--r);overflow:hidden;
   transition:border-color .15s,box-shadow .15s;
 }
-.url-box:focus-within{border-color:var(--acc);box-shadow:0 0 0 3px #7c3aed20}
+.url-box:focus-within{border-color:var(--acc);box-shadow:0 0 0 3px #2AABEE20}
 .url-box.valid  {border-color:#22c55e55}
 .url-box.invalid{border-color:#ef444455}
 
@@ -328,7 +328,7 @@ body{
   padding:2px 7px;white-space:nowrap;flex-shrink:0;
 }
 .b-idle{background:var(--b);color:var(--fg3)}
-.b-act {background:#7c3aed20;color:var(--acc-l)}
+.b-act {background:#2AABEE20;color:var(--acc-l)}
 .b-warn{background:#f59e0b20;color:var(--yellow)}
 .b-done{background:#22c55e20;color:var(--green)}
 .b-err {background:#ef444420;color:var(--red)}

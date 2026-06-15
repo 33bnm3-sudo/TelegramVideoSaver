@@ -704,7 +704,7 @@ function JobCard({ job, onCancel }: { job: Job; onCancel: (id: string) => void }
   const barColor =
     job.status==="done"      ? "var(--green)" :
     job.status==="error"||job.status==="cancelled" ? "var(--red)" :
-    job.status==="converting"? "var(--yellow)" : "var(--accent)";
+    job.status==="converting"? "var(--yellow)" : "var(--acc)";
 
   const BADGE: Record<JobStatus,[string,string]> = {
     queued:      ["Queued",      "b-idle"],
