@@ -140,17 +140,28 @@ fn find_raw_file(dir: &str, prefix: &str) -> Result<String, String> {
         .ok_or_else(|| "Downloaded file not found".to_string())
 }
 
-/// Append a "[HH:MM:SS] <url> -> <filename>" line to {day_dir}\links.txt.
+/// Append a row to {day_dir}\links.csv (시간,링크,파일명). Writes a UTF-8
+/// BOM + header row on first creation so Excel opens it with Korean intact.
 fn append_link_log(log_lock: &Mutex<()>, day_dir: &str, url: &str, filename: &str) {
     use std::io::Write;
     let _guard = log_lock.lock().unwrap();
-    let now = chrono::Local::now().format("%H:%M:%S");
-    let line = format!("[{}] {} -> {}\r\n", now, url, filename);
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true).append(true)
-        .open(format!("{}\\links.txt", day_dir))
-    {
+    let path = format!("{}\\links.csv", day_dir);
+    let is_new = !std::path::Path::new(&path).exists();
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        if is_new {
+            let _ = f.write_all("\u{FEFF}시간,링크,파일명\r\n".as_bytes());
+        }
+        let now = chrono::Local::now().format("%H:%M:%S");
+        let line = format!("{},{},{}\r\n", now, csv_field(url), csv_field(filename));
         let _ = f.write_all(line.as_bytes());
+    }
+}
+
+fn csv_field(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
     }
 }
 
