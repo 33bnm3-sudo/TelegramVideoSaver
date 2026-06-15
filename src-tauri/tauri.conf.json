@@ -1,0 +1,46 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run dev",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "TelegramVideoSaver",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "dialog": { "open": true },
+      "path": { "all": true },
+      "shell": { "open": true }
+    },
+    "bundle": {
+      "active": true,
+      "category": "Utility",
+      "identifier": "com.telegramvideosaver.app",
+      "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"],
+      "targets": ["msi"],
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": ""
+      }
+    },
+    "security": { "csp": null },
+    "windows": [
+      {
+        "title": "Telegram Video Saver",
+        "width": 800,
+        "height": 720,
+        "minWidth": 640,
+        "minHeight": 520,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true
+      }
+    ]
+  }
+}

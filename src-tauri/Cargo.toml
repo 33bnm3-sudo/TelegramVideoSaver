@@ -1,0 +1,38 @@
+[package]
+name = "telegram-video-saver"
+version = "0.1.0"
+description = "Telegram Saved Messages video downloader"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+tauri = { version = "1.6", features = [ "shell-open", "dialog-open", "path-all", "shell-open-api"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# crates.io's 0.9.0 release has a broken transitive dependency (glass_pumpkin
+# 1.10.0 is yanked with no compatible replacement), so pull from the source
+# repo directly until a fixed release is published.
+grammers-client = { git = "https://codeberg.org/Lonami/grammers", branch = "master" }
+grammers-session = { git = "https://codeberg.org/Lonami/grammers", branch = "master" }
+grammers-mtsender = { git = "https://codeberg.org/Lonami/grammers", branch = "master" }
+tokio = { version = "1", features = ["full"] }
+regex = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+strip = true
+opt-level = "s"
+
+# Build scripts' .pdb files can't be hardlinked/copied on Google Drive's
+# virtual filesystem ("Incorrect function" os error 1). Skip debug info for
+# them since it isn't needed anyway.
+[profile.dev.build-override]
+debug = false
