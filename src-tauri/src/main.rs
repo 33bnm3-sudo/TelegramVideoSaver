@@ -313,6 +313,7 @@ async fn download_video(
         "--concurrent-fragments".into(), "8".into(),
         "--buffer-size".into(), "16M".into(),
         "--http-chunk-size".into(), "5M".into(),
+        "--no-playlist".into(),
     ];
     if is_audio {
         args.extend(["-x".into(), "--audio-format".into(), "mp3".into(),
